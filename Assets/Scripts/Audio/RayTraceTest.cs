@@ -1,6 +1,7 @@
 using NUnit.Framework;
 using System.Collections.Generic;
 using System.Linq;
+using Unity.Hierarchy;
 using Unity.VisualScripting;
 using UnityEngine;
 using static UnityEngine.UI.Image;
@@ -19,7 +20,8 @@ public class RayTraceTest : MonoBehaviour
 
     void Update()
     {
-        DoSoundFalloff();
+        //DoSoundFalloff();
+        CreateBouncingRay(transform.position, transform.forward, 8);
     }
 
     void DoSoundFalloff()
@@ -92,5 +94,24 @@ public class RayTraceTest : MonoBehaviour
         }
 
         //hits.Sort((x, y) => x.distance.CompareTo(y.distance));
+    }
+
+    private void CreateBouncingRay(Vector3 startPosition, Vector3 startDirection, float bounces)
+    {
+        if(bounces >0)
+        {
+            RaycastHit hit;
+            if (Physics.Raycast(startPosition, startDirection, out hit, 1000))
+            {
+                bounces--;
+                Vector3 reflectDir = Vector3.Reflect(startDirection, hit.normal);
+                Debug.DrawRay(startPosition, startDirection * hit.distance, Color.green);
+                CreateBouncingRay(hit.point, reflectDir, bounces);
+            }
+            else
+            {
+                Debug.DrawRay(startPosition, startDirection * 10000, Color.red);
+            }
+        }
     }
 }
