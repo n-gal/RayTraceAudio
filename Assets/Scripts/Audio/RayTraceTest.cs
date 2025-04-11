@@ -10,23 +10,48 @@ public class RayTraceTest : MonoBehaviour
 {
     [SerializeField] private AnimationCurve m_soundFalloff;
     [SerializeField] private AnimationCurve m_soundFalloffDampening;
-    private List<AudioSource> m_sources = new List<AudioSource>();
+    private List<RayTracedAudioSource> m_sources = new List<RayTracedAudioSource>();
+    private List<Vector3> m_averageSoundPositions = new List<Vector3>();
 
     void Awake()
     {
-        m_sources = new List<AudioSource>(Resources.FindObjectsOfTypeAll<AudioSource>());
+        m_sources = new List<RayTracedAudioSource>(Resources.FindObjectsOfTypeAll<RayTracedAudioSource>());
     }
 
+    private void OnDrawGizmos()
+    {
+        Gizmos.color = Color.green;
+        foreach (Vector3 position in m_averageSoundPositions)
+        {
+            Gizmos.DrawWireSphere(position, 3f);
+        }
+    }
 
     void Update()
     {
+        foreach (RayTracedAudioSource source in m_sources)
+            source.ClearHearPoints();
+        List<Vector3> averageSoundPositions = new List<Vector3>();
+
         //DoSoundFalloff();
         CreateBouncingRay(transform.position, transform.forward, 8);
+        CreateSensingRays(transform.position, 100, 8);
+
+        foreach (RayTracedAudioSource source in m_sources)
+        {
+
+            List<Vector3> heardPositions = new List<Vector3>();
+            heardPositions = source.m_heardPositions;
+            Vector3 newSoundPos = AverageVec3(heardPositions);
+            averageSoundPositions.Add(newSoundPos);
+        }
+        m_averageSoundPositions = averageSoundPositions;
+
     }
 
     void DoSoundFalloff()
     {
-        foreach (AudioSource source in m_sources)
+        foreach (RayTracedAudioSource source in m_sources)
         {
             float distance = Vector3.Distance(source.transform.position, transform.position);
             CheckSoundObstruction(source.transform, distance);
@@ -96,7 +121,34 @@ public class RayTraceTest : MonoBehaviour
         //hits.Sort((x, y) => x.distance.CompareTo(y.distance));
     }
 
-    private void CreateBouncingRay(Vector3 startPosition, Vector3 startDirection, float bounces)
+    private bool IsSoundVisible(RayTracedAudioSource source)
+    {
+        Vector3 direction = (source.transform.position - transform.position).normalized;
+        RaycastHit hit;
+        return !Physics.Raycast(transform.position, direction, out hit);
+    }
+
+    void CreateSensingRays(Vector3 startPosition, int numRays, int bounces)
+    {
+        float phi = Mathf.PI * (3f - Mathf.Sqrt(5f)); 
+
+        for (int i = 0; i < numRays; i++)
+        {
+            float y = 1f - (i / (float)(numRays - 1)) * 2f; 
+            float radius = Mathf.Sqrt(1 - y * y); 
+
+            float theta = phi * i;
+
+            float x = Mathf.Cos(theta) * radius;
+            float z = Mathf.Sin(theta) * radius;
+
+            Vector3 dir = new Vector3(x, y, z);
+
+            CreateBouncingRay(startPosition, dir, bounces);
+        }
+    }
+
+    private void CreateBouncingRay(Vector3 startPosition, Vector3 startDirection, int bounces)
     {
         if(bounces >0)
         {
@@ -104,14 +156,39 @@ public class RayTraceTest : MonoBehaviour
             if (Physics.Raycast(startPosition, startDirection, out hit, 1000))
             {
                 bounces--;
-                Vector3 reflectDir = Vector3.Reflect(startDirection, hit.normal);
-                Debug.DrawRay(startPosition, startDirection * hit.distance, Color.green);
-                CreateBouncingRay(hit.point, reflectDir, bounces);
+
+                
+                RaycastHit parentHit = hit;
+                foreach (RayTracedAudioSource source in m_sources)
+                {
+                    // pull the ray slightly away from the hit point so as to prevent it from passing through walls
+                    Vector3 adjustedHitPos = parentHit.point + (0.1f * parentHit.normal);
+                    Vector3 direction = (source.transform.position - adjustedHitPos).normalized;
+                    float distance = Vector3.Distance(adjustedHitPos, source.transform.position);
+                    if (!Physics.Raycast(adjustedHitPos, direction, out hit, distance))
+                    {
+                        Debug.DrawRay(startPosition, startDirection * parentHit.distance, Color.green);
+                        source.m_heardPositions.Add(parentHit.point);
+                        Debug.DrawRay(adjustedHitPos, direction * distance, Color.blue);
+                    }
+                }
+                Vector3 reflectDir = Vector3.Reflect(startDirection, parentHit.normal);
+                CreateBouncingRay(parentHit.point, reflectDir, bounces);
             }
             else
             {
-                Debug.DrawRay(startPosition, startDirection * 10000, Color.red);
+                //Debug.DrawRay(startPosition, startDirection * 10000, Color.red);
             }
         }
+    }
+
+    private Vector3 AverageVec3(List<Vector3> vector3s)
+    {
+        Vector3 average = Vector3.zero;
+        foreach (Vector3 v in vector3s)
+            average += v;
+
+        average = average / vector3s.Count;
+        return average;
     }
 }

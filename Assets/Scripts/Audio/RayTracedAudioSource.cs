@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using NUnit.Framework;
 using UnityEngine;
 
 public class RayTracedAudioSource : MonoBehaviour
@@ -7,7 +9,7 @@ public class RayTracedAudioSource : MonoBehaviour
     [SerializeField] public float m_baseAudioVolume = 1f;
     [SerializeField] public float m_minDistance = 1f;
     [SerializeField] public float m_maxDistance = 500f;
-
+    [HideInInspector] public List<Vector3> m_heardPositions = new List<Vector3>();
     [HideInInspector] public Vector3 m_virtualPosition;
     private AudioSource m_audioSource;
     private AudioLowPassFilter m_audioLowPassFilter;
@@ -46,5 +48,8 @@ public class RayTracedAudioSource : MonoBehaviour
         m_audioLowPassFilter.cutoffFrequency = cutoffFrequency;
     }
 
-
+    public void ClearHearPoints()
+    {
+        m_heardPositions.Clear();
+    }
 }
